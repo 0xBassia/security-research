@@ -2,10 +2,10 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first and only written up here after the maintainer shipped a fix.
 
-Most of what I've reported lately is prototype pollution in small npm packages that turn user input into objects. There's also an access-control bug in NocoDB and an unauthenticated upload in a WordPress plugin. Seven CVEs so far.
+Most of what I've reported lately is prototype pollution in small npm packages that turn user input into objects. There's also an access-control bug in NocoDB and two file-upload bugs in WordPress plugins, one of them an unauthenticated path straight to RCE. Eight CVEs so far.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-7-ff2d78?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-8-ff2d78?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 
 ## The list
 
@@ -17,6 +17,7 @@ Most of what I've reported lately is prototype pollution in small npm packages t
 | CVE-2026-45325 | @tmlmobilidade/utils | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-cmxg-94mg-jq94) |
 | CVE-2026-45302 | parse-nested-form-data | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-xp7r-j8r6-j9h3) |
 | CVE-2026-44483 | @rvf/set-get | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-c567-44rc-m5hq) |
+| CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
 | CVE-2026-9067 | Schema & Structured Data for WP & AMP (< 1.60) | High | Unauthenticated media upload | [WPScan](https://wpscan.com/vulnerability/7fac98eb-f82c-4705-a956-aba650945826) |
 
 ## Why so many of these are prototype pollution
@@ -112,6 +113,17 @@ Not prototype pollution this time. Columns a creator had hidden from a public sh
 </details>
 
 <details>
+<summary><b>CVE-2026-9815</b>: MagicForm, <= 0.1.3 (unauthenticated upload to RCE)</summary>
+
+<br>
+
+The strongest one in this list. MagicForm exposes an unauthenticated AJAX upload action, and when a form leaves a field's extension allowlist empty the plugin stops validating the file type at all. So you can upload a PHP file and run code on the server, no login required. Reported through WPScan and credited to me. High.
+
+[WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3)
+
+</details>
+
+<details>
 <summary><b>CVE-2026-9067</b>: Schema & Structured Data for WP & AMP, < 1.60 (unauthenticated upload)</summary>
 
 <br>
@@ -124,6 +136,6 @@ A WordPress plugin one. An upload path was missing both the authentication check
 
 ## A note on disclosure
 
-Everything here went through the project's private reporting channel first (GitHub Security Advisories, or WPScan for the WordPress one) and stayed quiet until a patch was out. I'm not publishing working exploits, just the root cause and enough detail to understand the class.
+Everything here went through the project's private reporting channel first (GitHub Security Advisories, or WPScan for the WordPress ones) and stayed quiet until a patch was out. I'm not publishing working exploits, just the root cause and enough detail to understand the class.
 
 If you maintain a package and want another set of eyes on it, turn on private vulnerability reporting and send me a note at [0xbassia@gmail.com](mailto:0xbassia@gmail.com). Happy to help.
