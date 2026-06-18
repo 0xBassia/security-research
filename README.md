@@ -2,10 +2,10 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first and only written up here after the maintainer shipped a fix.
 
-Most of what I've reported lately is prototype pollution in small npm packages that turn user input into objects. There's also an access-control bug in NocoDB and two file-upload bugs in WordPress plugins, one of them an unauthenticated path straight to RCE. Eight CVEs so far.
+Most of what I've reported lately is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: an access-control bug in NocoDB, two unauthenticated file-upload bugs in WordPress plugins (one straight to RCE), and a pair of unauthenticated SSRFs in another plugin. Ten CVEs so far.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-8-ff2d78?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-10-ff2d78?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 
 ## The list
 
@@ -18,6 +18,8 @@ Most of what I've reported lately is prototype pollution in small npm packages t
 | CVE-2026-45302 | parse-nested-form-data | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-xp7r-j8r6-j9h3) |
 | CVE-2026-44483 | @rvf/set-get | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-c567-44rc-m5hq) |
 | CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
+| CVE-2026-12516 | Fediverse Embeds (< 1.5.8) | High (7.5) | Unauthenticated SSRF via media proxy | [WPScan](https://wpscan.com/vulnerability/2ac80164-03b7-4966-b022-833b4194de80) |
+| CVE-2026-12517 | Fediverse Embeds (< 1.5.8) | Medium (5.3) | Unauthenticated SSRF via site-info endpoint | [WPScan](https://wpscan.com/vulnerability/460a996f-e27d-47e8-9d68-9e6be93100c0) |
 | CVE-2026-9067 | Schema & Structured Data for WP & AMP (< 1.60) | High | Unauthenticated media upload | [WPScan](https://wpscan.com/vulnerability/7fac98eb-f82c-4705-a956-aba650945826) |
 
 ## Why so many of these are prototype pollution
@@ -120,6 +122,28 @@ Not prototype pollution this time. Columns a creator had hidden from a public sh
 The strongest one in this list. MagicForm exposes an unauthenticated AJAX upload action, and when a form leaves a field's extension allowlist empty the plugin stops validating the file type at all. So you can upload a PHP file and run code on the server, no login required. Reported through WPScan and credited to me. High.
 
 [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-12516</b>: Fediverse Embeds, < 1.5.8 (unauthenticated SSRF via media proxy)</summary>
+
+<br>
+
+The plugin has a media-proxying endpoint that fetches a URL server-side and hands you back the response body, but it never checks where that URL points. No auth needed. So you can aim it at internal services or private-network addresses (cloud metadata, localhost admin panels, anything the server can reach) and read the response. Full-read SSRF, effectively an open proxy too. CVSS 7.5.
+
+[WPScan](https://wpscan.com/vulnerability/2ac80164-03b7-4966-b022-833b4194de80)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-12517</b>: Fediverse Embeds, < 1.5.8 (unauthenticated SSRF via site-info endpoint)</summary>
+
+<br>
+
+Same plugin, second sink. The site-info endpoint fetches a remote page server-side and returns the parsed metadata. The gating nonce is printed on any public page that carries an embed, so it isn't really a barrier, and again the destination isn't validated. You get back parsed page metadata rather than the raw body, so it leaks a bit less than the media proxy, hence the lower score. CVSS 5.3.
+
+[WPScan](https://wpscan.com/vulnerability/460a996f-e27d-47e8-9d68-9e6be93100c0)
 
 </details>
 
