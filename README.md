@@ -2,21 +2,25 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first and only written up here after the maintainer shipped a fix.
 
-Most of what I've reported lately is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: an access-control bug in NocoDB, two unauthenticated file-upload bugs in WordPress plugins (one straight to RCE), and a pair of unauthenticated SSRFs in another plugin. Ten CVEs so far.
+A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: an unauthenticated account takeover in a WordPress login plugin, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, two unauthenticated upload bugs (one straight to RCE), and a handful of SSRFs. Thirteen CVEs so far, plus four advisories that shipped without one.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-10-ff2d78?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-13-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 
 ## The list
 
 | CVE | Where | Severity | Bug | Advisory |
 |:----|:------|:---------|:----|:---------|
+| CVE-2026-55671 | zitadel/zitadel (Go) | Low | SSRF and denylist bypass in outgoing HTTP components | [GHSA](https://github.com/advisories/GHSA-29jh-8cfq-rr8x) |
 | CVE-2026-47378 | nocodb | Medium | Hidden columns leak through public shared views | [GHSA](https://github.com/advisories/GHSA-4w6r-5c2j-qf5f) |
 | CVE-2026-46510 | form-data-objectizer | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-m2hg-wjq3-28wq) |
 | CVE-2026-46509 | @ranfdev/deepobj | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-x7q7-fchv-8h2j) |
 | CVE-2026-45325 | @tmlmobilidade/utils | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-cmxg-94mg-jq94) |
 | CVE-2026-45302 | parse-nested-form-data | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-xp7r-j8r6-j9h3) |
 | CVE-2026-44483 | @rvf/set-get | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-c567-44rc-m5hq) |
+| CVE-2026-14561 | Authora, Easy Login with Mobile Number (< 1.7.7) | Critical (9.8) | Unauthenticated account takeover via OTP disclosure | [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d) |
+| CVE-2026-17533 | All-in-One WP Migration and Backup (< 7.108) | High (7.2) | Subsite admin to network-wide PHP execution | [WPScan](https://wpscan.com/vulnerability/13b57cdc-d954-4db6-94c2-53ad04ab0d34) |
 | CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
 | CVE-2026-12516 | Fediverse Embeds (< 1.5.8) | High (7.5) | Unauthenticated SSRF via media proxy | [WPScan](https://wpscan.com/vulnerability/2ac80164-03b7-4966-b022-833b4194de80) |
 | CVE-2026-12517 | Fediverse Embeds (< 1.5.8) | Medium (5.3) | Unauthenticated SSRF via site-info endpoint | [WPScan](https://wpscan.com/vulnerability/460a996f-e27d-47e8-9d68-9e6be93100c0) |
@@ -42,11 +46,56 @@ setPath({}, '__proto__.polluted', 'yes');
 ({}).polluted; // 'yes' (a brand new object already has the property)
 ```
 
-On its own this rarely does anything dramatic. It gets dangerous when something downstream reads one of those polluted properties: a config flag that was supposed to be undefined and is now `true`, a missing `isAdmin` that suddenly answers yes, a template that renders a value it never should have. In all six cases below the vulnerable function could be driven straight from HTTP form data, so there was no login step and nothing unusual to configure. A plain POST was enough to reach it.
+On its own this rarely does anything dramatic. It gets dangerous when something downstream reads one of those polluted properties: a config flag that was supposed to be undefined and is now `true`, a missing `isAdmin` that suddenly answers yes, a template that renders a value it never should have. In all five cases below the vulnerable function could be driven straight from HTTP form data, so there was no login step and nothing unusual to configure. A plain POST was enough to reach it.
 
 The fix is boring and the same every time: reject `__proto__`, `constructor` and `prototype` while walking the path, or build the object with `Object.create(null)` so there's no prototype to poison.
 
 ## Notes on each one
+
+<details>
+<summary><b>CVE-2026-14561</b>: Authora, Easy Login with Mobile Number, < 1.7.7 (unauthenticated account takeover)</summary>
+
+<br>
+
+The one that still surprises me. Authora lets people sign in with a mobile number and a one-time code. The AJAX action that generates that code also hands it back in its own JSON response, together with a valid verification token. The secret that is supposed to travel out of band to the user's phone gets returned to whoever asked for it.
+
+So if you know someone's registered number you can request a code, read it straight out of the reply, and complete the login as them. Administrators included. There is no authentication anywhere in the chain. Asking for a number that isn't registered yet is bad in a different direction: the verify step creates a fresh account and logs you into it.
+
+The fix is the obvious one. Send the code to the phone and keep it out of the response body. Fixed in 1.7.7. CVSS 9.8, the highest I've had.
+
+[WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-17533</b>: All-in-One WP Migration and Backup, < 7.108 (subsite admin to network-wide PHP execution)</summary>
+
+<br>
+
+WordPress multisite exists to keep tenants apart. A subsite administrator runs their own site and is deliberately denied the ability to install plugins or themes, because that would mean executing code on a box shared with every other tenant on the network.
+
+The plugin's migration import wasn't restricted to network administrators, so an ordinary subsite admin could reach it. An import is by definition a way to write files and have them run, which puts arbitrary PHP execution across the whole network in the hands of someone who was never meant to have it. The code execution isn't really the interesting part. The interesting part is that the privilege boundary multisite is built around simply wasn't being checked.
+
+WPScan is holding the proof of concept until 13 September 2026 so people have time to update, so there isn't one here either. Fixed in 7.108. CVSS 7.2.
+
+[WPScan](https://wpscan.com/vulnerability/13b57cdc-d954-4db6-94c2-53ad04ab0d34)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-55671</b>: zitadel/zitadel (SSRF and denylist bypass)</summary>
+
+<br>
+
+First Go target on this list. Zitadel makes outbound HTTP requests in several places where the destination comes from user configuration: webhook notification channels, OIDC back-channel logout endpoints, and SAML metadata fetches. Those URLs weren't being validated against the internal denylist at all.
+
+The denylist itself had gaps as well. It could be walked past with DNS rebinding, it followed redirects, it allowed an HTTPS to HTTP downgrade, and it was missing a number of common private ranges. On cloud deployments still permitting IMDSv1, the metadata endpoint was reachable.
+
+Scored Low because these features expect particular response shapes, which limits how much you can actually read back. Fixed in 4.15.2. CVSS 2.3.
+
+[Advisory](https://github.com/advisories/GHSA-29jh-8cfq-rr8x)
+
+</details>
 
 <details>
 <summary><b>CVE-2026-46510</b>: form-data-objectizer (prototype pollution)</summary>
@@ -119,7 +168,7 @@ Not prototype pollution this time. Columns a creator had hidden from a public sh
 
 <br>
 
-The strongest one in this list. MagicForm exposes an unauthenticated AJAX upload action, and when a form leaves a field's extension allowlist empty the plugin stops validating the file type at all. So you can upload a PHP file and run code on the server, no login required. Reported through WPScan and credited to me. High.
+MagicForm exposes an unauthenticated AJAX upload action, and when a form leaves a field's extension allowlist empty the plugin stops validating the file type at all. So you can upload a PHP file and run code on the server, no login required. Reported through WPScan and credited to me. High.
 
 [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3)
 
@@ -157,6 +206,36 @@ A WordPress plugin one. An upload path was missing both the authentication check
 [WPScan](https://wpscan.com/vulnerability/7fac98eb-f82c-4705-a956-aba650945826)
 
 </details>
+
+## Advisories without a CVE
+
+Four more that were published as GitHub Security Advisories but never had a CVE assigned. Same process, same fix-first rule, they just don't show up in CVE searches.
+
+| Advisory | Where | Severity | Bug |
+|:---------|:------|:---------|:----|
+| [GHSA-mrf2-rxph-r28h](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-mrf2-rxph-r28h) | Kunena Forum (<= 7.0.4) | High (8.2) | Unauthenticated attachment privacy modification |
+| [GHSA-wfph-gf24-pjqg](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-wfph-gf24-pjqg) | Kunena Forum (<= 7.0.4) | Medium (4.3) | Missing CSRF check on the topic rating endpoint |
+| [GHSA-px35-hwj4-wqrh](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-px35-hwj4-wqrh) | Kunena Forum (<= 7.0.4) | Low (3.5) | Arbitrary-user avatar overwrite |
+| [GHSA-354h-gmhv-mr9c](https://github.com/TryGhost/Ghost/security/advisories/GHSA-354h-gmhv-mr9c) | TryGhost/Ghost (< 6.27.0) | Low (2.7) | SSRF in the webhook trigger |
+
+### The Kunena three came from one thread
+
+I reported the avatar bug first. `UserController::upload()` was the only state-changing task in that controller that didn't call `Session::checkToken()`, and it also took a caller-supplied `userid` and wrote the avatar to a path derived from it. So a logged-in member could overwrite anyone's avatar, and because there was no token check, a crafted page could make an administrator do it on their behalf.
+
+While the fix was in review, a maintainer left a comment on the pull request: *"I think it would be good to check all ajax calls, better safe then sorry."* That's an open invitation, so I went through the rest of them.
+
+Two more turned up in `TopicController`, and both were worse than the one I started with:
+
+- `setprivate` had no token check, no authentication check and no ownership check at all. An unauthenticated request could mark any attachment private just by knowing its numeric ID, and the IDs are sequential. Scored 8.2, which made it the highest of the three.
+- `setrate` had no token check either, and its authorization condition was `$user->exists() || $this->config->ratingEnabled`. With the common `ratingEnabled` default, that second branch means an anonymous request writes straight through.
+
+The lesson I took from it: when a maintainer tells you the class probably repeats elsewhere in the codebase, believe them and go look. The best of the three findings came from the audit, not from the original report.
+
+### Ghost
+
+Ghost's webhooks let a staff user register a URL that the server calls on certain events. The destination wasn't validated, so a staff user could point one at an internal address and use the Ghost server to probe things it shouldn't reach.
+
+Low impact, since you need staff access first and you don't get much back. But it's structurally the same bug as the zitadel one above: a feature whose entire job is *fetch a URL the user gave us*, shipped without a check on where that URL points. That pattern is everywhere once you start looking for it. Fixed in 6.27.0. CVSS 2.7.
 
 ## A note on disclosure
 
