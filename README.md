@@ -1,11 +1,13 @@
 # Security Research
 
-A running list of bugs I've found and reported. Each one was disclosed privately first and only written up here after the maintainer shipped a fix.
+A running list of bugs I've found and reported. Each one was disclosed privately first, and only written up here once a fix shipped or the plugin was pulled from the directory.
 
-A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: an unauthenticated account takeover in a WordPress login plugin, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, two unauthenticated upload bugs (one straight to RCE), and a handful of SSRFs. Thirteen CVEs so far, plus four advisories that shipped without one.
+A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, and a handful of SSRFs. Nineteen CVEs so far, plus four advisories that shipped without one.
+
+The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trusts the browser about the file type and keeps the filename you give it.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-13-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-19-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 [![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 
 ## The list
@@ -19,6 +21,12 @@ A lot of what's here is prototype pollution in small npm packages that turn user
 | CVE-2026-45325 | @tmlmobilidade/utils | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-cmxg-94mg-jq94) |
 | CVE-2026-45302 | parse-nested-form-data | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-xp7r-j8r6-j9h3) |
 | CVE-2026-44483 | @rvf/set-get | High (8.2) | Prototype pollution | [GHSA](https://github.com/advisories/GHSA-c567-44rc-m5hq) |
+| CVE-2026-14560 | Teddy Bear Customize Addon (<= 1.0.5) | Critical (10.0) | Unauthenticated arbitrary file upload to RCE | [WPScan](https://wpscan.com/vulnerability/aba51906-91dc-4e75-ad44-373fe128deee) |
+| CVE-2026-14559 | Teddy Bear Customize Addon (<= 1.0.5) | Critical (9.8) | Unauthenticated account takeover, password never verified | [WPScan](https://wpscan.com/vulnerability/90cbbed5-9662-4405-88b8-bd55854dccdf) |
+| CVE-2026-14565 | Advanced Customized Prompts (<= 1.0.1) | High (8.0) | Subscriber+ stored XSS via product popup configuration | [WPScan](https://wpscan.com/vulnerability/613e5421-9da5-408a-b35d-b0def567e8db) |
+| CVE-2026-14562 | Teddy Bear Customize Addon (<= 1.0.5) | Medium (5.3) | Unauthenticated order and attachment data disclosure | [WPScan](https://wpscan.com/vulnerability/890f55f9-0bd0-4816-a666-a735b41ce5c7) |
+| CVE-2026-14563 | Advanced Customized Prompts (<= 1.0.1) | Unrated | Unauthenticated account takeover, password never verified | [WPScan](https://wpscan.com/vulnerability/7c7ad196-dff3-485f-9a50-8705bd796fb3) |
+| CVE-2026-14566 | Advanced Customized Prompts (<= 1.0.1) | Unrated | Subscriber+ WooCommerce order metadata tampering | [WPScan](https://wpscan.com/vulnerability/01094477-a9ad-41d9-9acd-f6ed37e6e605) |
 | CVE-2026-14561 | Authora, Easy Login with Mobile Number (< 1.7.7) | Critical (9.8) | Unauthenticated account takeover via OTP disclosure | [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d) |
 | CVE-2026-17533 | All-in-One WP Migration and Backup (< 7.108) | High (7.2) | Subsite admin to network-wide PHP execution | [WPScan](https://wpscan.com/vulnerability/13b57cdc-d954-4db6-94c2-53ad04ab0d34) |
 | CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
@@ -53,6 +61,96 @@ The fix is boring and the same every time: reject `__proto__`, `constructor` and
 ## Notes on each one
 
 <details>
+<summary><b>CVE-2026-14560</b>: Teddy Bear Customize Addon, <= 1.0.5 (unauthenticated upload to RCE)</summary>
+
+<br>
+
+My first 10.0, and it got there by stacking three small decisions that are each survivable on their own.
+
+The upload handler took the browser's word for what the file was, trusting the client-supplied content type instead of checking the actual bytes. It kept the original filename rather than generating its own. And the endpoint had no authentication in front of it. Any one of those is a bad idea. Together they mean an anonymous request can put a `.php` file on disk, under a name it chose, in a place the server will happily execute.
+
+Nothing clever is required, which is why it scores what it scores. Every metric that can be maximised is: no privileges, no interaction, network reachable, and full impact on all three of confidentiality, integrity and availability.
+
+The plugin was removed from the directory rather than patched, and WPScan is holding the proof of concept.
+
+[WPScan](https://wpscan.com/vulnerability/aba51906-91dc-4e75-ad44-373fe128deee)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-14559</b>: Teddy Bear Customize Addon, <= 1.0.5 (unauthenticated account takeover)</summary>
+
+<br>
+
+Supply an email address, get a session. The login path issued an authenticated session for whatever address you handed it without ever checking the password.
+
+There's no bypass technique to describe here and no trick to it. The check simply isn't in the code. Any registered address works, administrators included, and there's nothing to brute force because there's nothing being compared.
+
+I find these more interesting than they look. A missing comparison reads as normal code during review, because the absence of a line is much harder to notice than a wrong line. CVSS 9.8.
+
+[WPScan](https://wpscan.com/vulnerability/90cbbed5-9662-4405-88b8-bd55854dccdf)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-14562</b>: Teddy Bear Customize Addon, <= 1.0.5 (unauthenticated order data disclosure)</summary>
+
+<br>
+
+The third one in the same plugin. An endpoint returned WooCommerce order metadata along with the URLs of files customers had uploaded to their orders, and never checked whether the caller had any relationship to the order being asked about.
+
+So you could walk order IDs and read other people's order details, then follow the attachment URLs and pull whatever they had uploaded. On a store selling customised products those attachments are often personal: photos, names, artwork for the thing being made.
+
+Rated 5.3 because it's read-only, though for the people whose files are sitting behind those URLs that scoring feels a little abstract.
+
+[WPScan](https://wpscan.com/vulnerability/890f55f9-0bd0-4816-a666-a735b41ce5c7)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-14563</b>: Advanced Customized Prompts, <= 1.0.1 (unauthenticated account takeover)</summary>
+
+<br>
+
+The same bug as CVE-2026-14559, in a different plugin, found the same week. An unauthenticated action issued a session for a supplied email address without verifying the password. Administrators included, and unregistered addresses got an account created for them.
+
+WPScan published this one without a CVSS score. By the metrics it looks identical to the 9.8 above, but I'm not going to put a number on it that the advisory doesn't carry, so it sits here unrated.
+
+Plugin removed from the directory, proof of concept withheld.
+
+[WPScan](https://wpscan.com/vulnerability/7c7ad196-dff3-485f-9a50-8705bd796fb3)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-14565</b>: Advanced Customized Prompts, <= 1.0.1 (Subscriber+ stored XSS)</summary>
+
+<br>
+
+Saving the popup configuration attached to a product went through with no capability check, no ownership check and no nonce, and the stored values were never escaped on the way back out.
+
+So the lowest-privileged account the platform has, a subscriber, could write JavaScript into a product that anyone later viewing it would run. On a WooCommerce store the people most likely to open that product in the admin are the ones with the permissions worth stealing.
+
+Four separate controls would each have stopped it independently: capability, ownership, nonce, output escaping. None of them were there. CVSS 8.0.
+
+[WPScan](https://wpscan.com/vulnerability/613e5421-9da5-408a-b35d-b0def567e8db)
+
+</details>
+
+<details>
+<summary><b>CVE-2026-14566</b>: Advanced Customized Prompts, <= 1.0.1 (Subscriber+ order metadata tampering)</summary>
+
+<br>
+
+Same missing trio as the XSS above, pointed at a different target. Updating the custom metadata on a WooCommerce order item took an order ID from the request and did no capability, ownership or nonce check on it, so any logged-in user could edit the metadata on orders belonging to other people.
+
+Classic IDOR, CWE-639. Published without a CVSS score, so it's unrated here too.
+
+[WPScan](https://wpscan.com/vulnerability/01094477-a9ad-41d9-9acd-f6ed37e6e605)
+
+</details>
+
+<details>
 <summary><b>CVE-2026-14561</b>: Authora, Easy Login with Mobile Number, < 1.7.7 (unauthenticated account takeover)</summary>
 
 <br>
@@ -61,7 +159,7 @@ The one that still surprises me. Authora lets people sign in with a mobile numbe
 
 So if you know someone's registered number you can request a code, read it straight out of the reply, and complete the login as them. Administrators included. There is no authentication anywhere in the chain. Asking for a number that isn't registered yet is bad in a different direction: the verify step creates a fresh account and logs you into it.
 
-The fix is the obvious one. Send the code to the phone and keep it out of the response body. Fixed in 1.7.7. CVSS 9.8, the highest I've had.
+The fix is the obvious one. Send the code to the phone and keep it out of the response body. Fixed in 1.7.7. CVSS 9.8.
 
 [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d)
 
@@ -237,8 +335,16 @@ Ghost's webhooks let a staff user register a URL that the server calls on certai
 
 Low impact, since you need staff access first and you don't get much back. But it's structurally the same bug as the zitadel one above: a feature whose entire job is *fetch a URL the user gave us*, shipped without a check on where that URL points. That pattern is everywhere once you start looking for it. Fixed in 6.27.0. CVSS 2.7.
 
+## Two plugins, six bugs, one habit
+
+Six of the CVEs above came out of two WooCommerce add-ons I looked at in the same stretch, and they failed in almost exactly the same way.
+
+Both had authentication paths that issued a session without ever checking a password. Both had AJAX actions that changed or returned other people's data with no capability check, no ownership check and no nonce. It reads like the same missing mental step in two different codebases: the author thought about what the feature should do for a legitimate user, and never about who else could call it.
+
+Neither plugin got patched. Both were pulled from the WordPress.org directory instead, which is what usually happens when the author has moved on. It closes the hole for anyone installing fresh, and does nothing at all for sites that already have the plugin sitting there.
+
 ## A note on disclosure
 
-Everything here went through the project's private reporting channel first (GitHub Security Advisories, or WPScan for the WordPress ones) and stayed quiet until a patch was out. I'm not publishing working exploits, just the root cause and enough detail to understand the class.
+Everything here went through the project's private reporting channel first (GitHub Security Advisories, or WPScan for the WordPress ones) and stayed quiet until it was resolved. Usually that means a patch. Twice it meant the plugin was pulled from the WordPress.org directory instead, because nobody was maintaining it any more. Either way I waited for the advisory to go public before writing anything here, and I'm not publishing working exploits, just the root cause and enough detail to understand the class.
 
 If you maintain a package and want another set of eyes on it, turn on private vulnerability reporting and send me a note at [0xbassia@gmail.com](mailto:0xbassia@gmail.com). Happy to help.
