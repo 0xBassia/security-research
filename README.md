@@ -2,13 +2,13 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first, and only written up here once a fix shipped or the plugin was pulled from the directory.
 
-A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, and a handful of SSRFs. Nineteen CVEs so far, plus four advisories that shipped without one.
+A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, a SQL injection that arrives through an imported calendar feed, and a handful of SSRFs. Twenty CVEs so far, plus four advisories that shipped without one.
 
 The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trusts the browser about the file type and keeps the filename you give it.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-19-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
-[![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-20-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](#advisories-without-a-cve)
 
 ## The list
 
@@ -29,6 +29,7 @@ The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trust
 | CVE-2026-14566 | Advanced Customized Prompts (<= 1.0.1) | Unrated | Subscriber+ WooCommerce order metadata tampering | [WPScan](https://wpscan.com/vulnerability/01094477-a9ad-41d9-9acd-f6ed37e6e605) |
 | CVE-2026-14561 | Authora, Easy Login with Mobile Number (< 1.7.7) | Critical (9.8) | Unauthenticated account takeover via OTP disclosure | [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d) |
 | CVE-2026-17533 | All-in-One WP Migration and Backup (< 7.108) | High (7.2) | Subsite admin to network-wide PHP execution | [WPScan](https://wpscan.com/vulnerability/13b57cdc-d954-4db6-94c2-53ad04ab0d34) |
+| CVE-2026-91024 | Booking Manager (< 2.1.21) | Medium (6.8) | Author+ SQLi via imported iCalendar feed UID | [WPScan](https://wpscan.com/vulnerability/a5472152-0b96-4fc6-af90-2f1b01811237) |
 | CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
 | CVE-2026-12516 | Fediverse Embeds (< 1.5.8) | High (7.5) | Unauthenticated SSRF via media proxy | [WPScan](https://wpscan.com/vulnerability/2ac80164-03b7-4966-b022-833b4194de80) |
 | CVE-2026-12517 | Fediverse Embeds (< 1.5.8) | Medium (5.3) | Unauthenticated SSRF via site-info endpoint | [WPScan](https://wpscan.com/vulnerability/460a996f-e27d-47e8-9d68-9e6be93100c0) |
@@ -159,7 +160,7 @@ The one that still surprises me. Authora lets people sign in with a mobile numbe
 
 So if you know someone's registered number you can request a code, read it straight out of the reply, and complete the login as them. Administrators included. There is no authentication anywhere in the chain. Asking for a number that isn't registered yet is bad in a different direction: the verify step creates a fresh account and logs you into it.
 
-The fix is the obvious one. Send the code to the phone and keep it out of the response body. Fixed in 1.7.7. CVSS 9.8.
+The fix is the obvious one. Send the code to the phone and keep it out of the response body. Fixed in 1.7.7. CVSS 9.8, the highest I've had.
 
 [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d)
 
@@ -262,6 +263,23 @@ Not prototype pollution this time. Columns a creator had hidden from a public sh
 </details>
 
 <details>
+<summary><b>CVE-2026-91024</b>: Booking Manager, < 2.1.21 (Author+ SQL injection)</summary>
+
+<br>
+
+First SQL injection on this list, and what makes it worth writing up is where the input comes from.
+
+Booking Manager can import bookings from an external iCalendar feed. An author-level user points it at a URL, the plugin fetches the `.ics` file, and reads the UID out of each event into `sync_gid`. That value then goes into a SQL query with no sanitising and no escaping.
+
+So the injection point isn't a form field or a query parameter. It's a line inside a calendar file sitting on a server the attacker controls. The plugin treats the feed as trusted because a logged-in user configured the import, but the contents of that feed were never that user's to vouch for. Anything that crosses the network and lands in a query is input, no matter who typed the URL.
+
+Author is not a high bar on a site that takes guest contributors. Fixed in 2.1.21. CVSS 6.8.
+
+[WPScan](https://wpscan.com/vulnerability/a5472152-0b96-4fc6-af90-2f1b01811237)
+
+</details>
+
+<details>
 <summary><b>CVE-2026-9815</b>: MagicForm, <= 0.1.3 (unauthenticated upload to RCE)</summary>
 
 <br>
@@ -307,7 +325,7 @@ A WordPress plugin one. An upload path was missing both the authentication check
 
 ## Advisories without a CVE
 
-Four more that were published as GitHub Security Advisories but never had a CVE assigned. Same process, same fix-first rule, they just don't show up in CVE searches.
+Four more that were published as GitHub Security Advisories but never had a CVE assigned. Same process, same rules. They don't show up under `credit:0xBassia` either, because the global Advisory Database only indexes advisories that receive a CVE, so these stay on the repo that published them.
 
 | Advisory | Where | Severity | Bug |
 |:---------|:------|:---------|:----|
