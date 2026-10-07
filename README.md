@@ -2,12 +2,12 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first, and only written up here once a fix shipped or the plugin was pulled from the directory.
 
-A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, a SQL injection that arrives through an imported calendar feed, and a handful of SSRFs. Twenty CVEs so far, plus four advisories that shipped without one.
+A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, two SQL injections, one of them reachable by a contributor, and a handful of SSRFs. Twenty-one CVEs so far, plus four advisories that shipped without one.
 
 The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trusts the browser about the file type and keeps the filename you give it.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
-[![CVEs](https://img.shields.io/badge/CVEs-20-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
+[![CVEs](https://img.shields.io/badge/CVEs-21-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
 [![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](#advisories-without-a-cve)
 
 ## The list
@@ -30,6 +30,7 @@ The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trust
 | CVE-2026-14561 | Authora, Easy Login with Mobile Number (< 1.7.7) | Critical (9.8) | Unauthenticated account takeover via OTP disclosure | [WPScan](https://wpscan.com/vulnerability/4025601f-ed33-4772-b716-a9979830e10d) |
 | CVE-2026-17533 | All-in-One WP Migration and Backup (< 7.108) | High (7.2) | Subsite admin to network-wide PHP execution | [WPScan](https://wpscan.com/vulnerability/13b57cdc-d954-4db6-94c2-53ad04ab0d34) |
 | CVE-2026-91024 | Booking Manager (< 2.1.21) | Medium (6.8) | Author+ SQLi via imported iCalendar feed UID | [WPScan](https://wpscan.com/vulnerability/a5472152-0b96-4fc6-af90-2f1b01811237) |
+| CVE-2026-91074 | BSK PDF Manager (<= 3.8.1) | Medium (6.8) | Contributor+ SQLi via tags_specific shortcode attribute | [WPScan](https://wpscan.com/vulnerability/e33c7673-2e31-4f0f-9e29-c65a6b4944a5) |
 | CVE-2026-9815 | MagicForm (<= 0.1.3) | High | Unauthenticated file upload to RCE | [WPScan](https://wpscan.com/vulnerability/043f449f-fc65-4218-83d2-7742e62f2af3) |
 | CVE-2026-12516 | Fediverse Embeds (< 1.5.8) | High (7.5) | Unauthenticated SSRF via media proxy | [WPScan](https://wpscan.com/vulnerability/2ac80164-03b7-4966-b022-833b4194de80) |
 | CVE-2026-12517 | Fediverse Embeds (< 1.5.8) | Medium (5.3) | Unauthenticated SSRF via site-info endpoint | [WPScan](https://wpscan.com/vulnerability/460a996f-e27d-47e8-9d68-9e6be93100c0) |
@@ -263,6 +264,32 @@ Not prototype pollution this time. Columns a creator had hidden from a public sh
 </details>
 
 <details>
+<summary><b>CVE-2026-91074</b>: BSK PDF Manager, <= 3.8.1 (Contributor+ SQL injection)</summary>
+
+<br>
+
+Second SQL injection on the list, and the worse of the two for impact.
+
+A shortcode attribute, `tags_specific`, went into a SQL statement without being
+sanitised or escaped. Shortcodes are content, so anyone who can write a post can
+reach it, and on a WordPress site that includes the contributor role, which exists
+precisely for people you do not fully trust. Contributors cannot publish, cannot
+install anything, cannot touch settings. They can write a draft. That turns out to
+be enough to read arbitrary data out of the database, including the administrator
+password hashes.
+
+The gap between what the role is meant to allow and what it actually allowed is
+the whole finding. Someone invited to submit a guest article ends up with the
+hashes for every account on the site.
+
+No fix was released. The plugin was closed and removed from the WordPress.org
+directory instead. CVSS 6.8, which in my view reads low for the data involved.
+
+[WPScan](https://wpscan.com/vulnerability/e33c7673-2e31-4f0f-9e29-c65a6b4944a5)
+
+</details>
+
+<details>
 <summary><b>CVE-2026-91024</b>: Booking Manager, < 2.1.21 (Author+ SQL injection)</summary>
 
 <br>
@@ -359,7 +386,7 @@ Six of the CVEs above came out of two WooCommerce add-ons I looked at in the sam
 
 Both had authentication paths that issued a session without ever checking a password. Both had AJAX actions that changed or returned other people's data with no capability check, no ownership check and no nonce. It reads like the same missing mental step in two different codebases: the author thought about what the feature should do for a legitimate user, and never about who else could call it.
 
-Neither plugin got patched. Both were pulled from the WordPress.org directory instead, which is what usually happens when the author has moved on. It closes the hole for anyone installing fresh, and does nothing at all for sites that already have the plugin sitting there.
+Neither plugin got patched. Both were pulled from the WordPress.org directory instead, which is what usually happens when the author has moved on. BSK PDF Manager went the same way later. It closes the hole for anyone installing fresh, and does nothing at all for sites that already have the plugin sitting there.
 
 ## A note on disclosure
 
