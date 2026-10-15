@@ -2,13 +2,13 @@
 
 A running list of bugs I've found and reported. Each one was disclosed privately first, and only written up here once a fix shipped or the plugin was pulled from the directory.
 
-A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, two SQL injections, one of them reachable by a contributor, and a handful of SSRFs. Twenty-one CVEs so far, plus four advisories that shipped without one.
+A lot of what's here is prototype pollution in small npm packages that turn user input into objects. The rest is a mix: three unauthenticated account takeovers, two unauthenticated uploads that reach code execution, a multisite privilege boundary that let a subsite admin run PHP across a whole network, an access-control bug in NocoDB, two SQL injections, one of them reachable by a contributor, and a handful of SSRFs. Twenty-one CVEs so far, plus five advisories that shipped without one.
 
 The highest is CVE-2026-14560 at 10.0: an unauthenticated file upload that trusts the browser about the file type and keeps the filename you give it.
 
 [![Credited advisories](https://img.shields.io/badge/GitHub_Advisories-credit%3A0xBassia-2188FF?style=flat-square&logo=github)](https://github.com/advisories?query=credit%3A0xBassia)
 [![CVEs](https://img.shields.io/badge/CVEs-21-58a6ff?style=flat-square)](https://github.com/advisories?query=credit%3A0xBassia)
-[![Advisories without a CVE](https://img.shields.io/badge/GHSA_without_CVE-4-388bfd?style=flat-square)](#advisories-without-a-cve)
+[![Advisories without a CVE](https://img.shields.io/badge/advisories_without_CVE-5-388bfd?style=flat-square)](#advisories-without-a-cve)
 
 ## The list
 
@@ -352,10 +352,11 @@ A WordPress plugin one. An upload path was missing both the authentication check
 
 ## Advisories without a CVE
 
-Four more that were published as GitHub Security Advisories but never had a CVE assigned. Same process, same rules. They don't show up under `credit:0xBassia` either, because the global Advisory Database only indexes advisories that receive a CVE, so these stay on the repo that published them.
+Five more that were published but never had a CVE assigned. Four are GitHub Security Advisories, one is a WPScan entry. Same process, same rules. The GitHub ones don't show up under `credit:0xBassia` either, because the global Advisory Database only indexes advisories that receive a CVE, so these stay on the repo that published them.
 
 | Advisory | Where | Severity | Bug |
 |:---------|:------|:---------|:----|
+| [WPScan advisory](https://wpscan.com/vulnerability/6cdf4a3c-5200-4fbf-9d23-b067dd82fe3a) | Advanced Posts Listing (1.0.3 - 1.0.8) | Medium (5.3) | Unauthenticated post metadata disclosure via REST endpoint |
 | [GHSA-mrf2-rxph-r28h](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-mrf2-rxph-r28h) | Kunena Forum (<= 7.0.4) | High (8.2) | Unauthenticated attachment privacy modification |
 | [GHSA-wfph-gf24-pjqg](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-wfph-gf24-pjqg) | Kunena Forum (<= 7.0.4) | Medium (4.3) | Missing CSRF check on the topic rating endpoint |
 | [GHSA-px35-hwj4-wqrh](https://github.com/Kunena/Kunena-Forum/security/advisories/GHSA-px35-hwj4-wqrh) | Kunena Forum (<= 7.0.4) | Low (3.5) | Arbitrary-user avatar overwrite |
@@ -387,6 +388,22 @@ Six of the CVEs above came out of two WooCommerce add-ons I looked at in the sam
 Both had authentication paths that issued a session without ever checking a password. Both had AJAX actions that changed or returned other people's data with no capability check, no ownership check and no nonce. It reads like the same missing mental step in two different codebases: the author thought about what the feature should do for a legitimate user, and never about who else could call it.
 
 Neither plugin got patched. Both were pulled from the WordPress.org directory instead, which is what usually happens when the author has moved on. BSK PDF Manager went the same way later. It closes the hole for anyone installing fresh, and does nothing at all for sites that already have the plugin sitting there.
+
+### Advanced Posts Listing
+
+A REST endpoint returned the full metadata of any published post or page with no
+authorisation check and no protected-meta filtering. WordPress deliberately holds
+certain meta keys back from its own REST API, usually because plugins stash
+internal state, licence keys or draft content in them. This endpoint handed all of
+it over to anyone who asked, unauthenticated.
+
+Nothing here is exotic. The plugin wrote its own REST route and did not reimplement
+the filtering that core already does for a reason. That is the whole class: if you
+expose metadata yourself, you inherit the obligation to respect what core hides.
+
+WPScan published it without assigning a CVE, so it sits here rather than in the
+list above. The plugin was closed and removed from the directory rather than
+patched. CVSS 5.3.
 
 ## A note on disclosure
 
